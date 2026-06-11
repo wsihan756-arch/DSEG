@@ -9,7 +9,7 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.preprocessing import MaxAbsScaler
 def load_mat(args):
-    """加载数据集"""
+    """Load and preprocess multi-view dataset from .mat file"""
     data_x = []
     Y = None
     if args.dataset == "Mfeat":
