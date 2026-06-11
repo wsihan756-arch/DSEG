@@ -18,23 +18,23 @@ from sklearn.preprocessing import normalize as sk_normalize
 # ----------------------- Argument Parser Setup -----------------------------------
 parser = argparse.ArgumentParser(description='DSEG Super Parameters')
 
-parser.add_argument('--dataset', type=str, default='synthetic3d', help='数据集名称')
-parser.add_argument('--lambda_1', type=float, default=0.1, help='解耦损失权重 L_decorr')
-parser.add_argument('--lambda_2', type=float, default=1.0, help='对比损失权重 L_nce')
-parser.add_argument('--tau', type=float, default=0.5, help='交叉预测分布的温度参数')
-parser.add_argument('--tau_g', type=float, default=0.5, help='全局指导分布的温度参数')
-parser.add_argument('--batch_size', type=int, default=1024, help='batch 大小')
-parser.add_argument('--hidden_dim', type=str, default='256,512,1024', help='隐藏层维度')
-parser.add_argument('--z_dim', type=int, default=32, help='语义特征维度 Z')
-parser.add_argument('--h_dim', type=int, default=32, help='结构特征维度 h')
-parser.add_argument('--shared_dim', type=int, default=512, help='投影头输出维度')
-parser.add_argument('--lr', type=float, default=3e-4, help='学习率')
-parser.add_argument('--weight_decay', type=float, default=5e-6, help='权重衰减')
-parser.add_argument('--warmup', type=int, default=0, help='预热')
-parser.add_argument('--k_nn', type=int, default=10, help='KNN 建图')
-parser.add_argument('--n_init', type=int, default=10, help='KMeans 初始化次数')
-parser.add_argument('--gate_lr', type=float, default=0.001, help='gate 学习率')
-parser.add_argument('--w_ema', type=float, default=0.999, help='EMA 权重衰减')
+parser.add_argument('--dataset', type=str, default='synthetic3d', help='Dataset Name')
+parser.add_argument('--lambda_1', type=float, default=0.1, help='Weight of l_decorr')
+parser.add_argument('--lambda_2', type=float, default=1.0, help='Weight of l_nce')
+parser.add_argument('--tau', type=float, default=0.5, help='Temperature parameter of cross-prediction distribution')
+parser.add_argument('--tau_g', type=float, default=0.5, help='Temperature parameter of globally guided distribution')
+parser.add_argument('--batch_size', type=int, default=1024, help='Training batch size')
+parser.add_argument('--hidden_dim', type=str, default='256,512,1024', help='Hidden layer dimensions')
+parser.add_argument('--z_dim', type=int, default=32, help='Semantic feature dimension')
+parser.add_argument('--h_dim', type=int, default=32, help='Structural feature dimension')
+parser.add_argument('--shared_dim', type=int, default=512, help='Projector head dimension')
+parser.add_argument('--lr', type=float, default=3e-4, help='Learning rate')
+parser.add_argument('--weight_decay', type=float, default=5e-6, help='Weight decay')
+parser.add_argument('--warmup', type=int, default=0, help='Preheating')
+parser.add_argument('--k_nn', type=int, default=10, help='Number of neighboring nodes')
+parser.add_argument('--n_init', type=int, default=10, help='KMeans initialization count')
+parser.add_argument('--gate_lr', type=float, default=0.001, help='Learning rate of gate')
+parser.add_argument('--w_ema', type=float, default=0.999, help='Weight decay of EMA')
 
 args = parser.parse_args()
 
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     num_views = len(input_dims)
     n_clusters = len(np.unique(dataset.targets))
     hidden_dim = tuple(int(x.strip()) for x in args.hidden_dim.strip().split(','))
-    # shuffle = True 打乱数据集所有样本顺序
+    # shuffle = True: Shuffle the order of all samples in the dataset
     loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
     # ----------------------- Model & Optimizer Setup --------------------------
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     ema = EMA(model, decay=args.w_ema)
     ema.register()
 
-    # Adam优化器 分组学习率
+    # Adam optimizer group learning rate
     gate_params = []
     other_params = []
     for name, param in model.named_parameters():
@@ -75,10 +75,11 @@ if __name__ == "__main__":
         {'params': other_params, 'lr': args.lr},
         {'params': gate_params, 'lr': args.lr*args.gate_lr }],
         weight_decay=args.weight_decay)
-    # 余弦退火学习率调度
+    
+    # Cosine annealing learning rate scheduling
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
-    # 创建结果目录
+    # Create results directory
     os.makedirs('train_results', exist_ok=True)
     from datetime import datetime
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -93,7 +94,7 @@ if __name__ == "__main__":
         l_nce = 0.0
         for idx, x_list, y in loader:
             x_list = [x.to(device) for x in x_list]
-            # 每个视图用KNN建图并归一化
+            # Each view is constructed using KNN and normalized
             A_real_list = []
             A_norm_list = []
             for v in range(num_views):
@@ -107,20 +108,21 @@ if __name__ == "__main__":
 
             total_loss, loss_details = loss_tracker(x_list, A_real_list, X_hat_list, A_hat_list, E_list,
                                                 S_list, M_list, ProjE_list, args.warmup, epoch)
-            # 反向传播
+            # Backpropagation
             total_loss.backward()
-            # 梯度裁剪
+            # Gradient clipping
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            # 更新参数
+            # Update parameters
             optimizer.step()
-            # 更新EMA参数
+            # Update EMA parameters
             ema.update()
 
             l_total += total_loss.item()
             l_rec += loss_details['L_rec']
             l_decorr += loss_details['L_decorr']
             l_nce += loss_details['L_nce']
-        #本轮训练结束，更新lr
+            
+        # This training session is over. update lr
         scheduler.step()
         # ----------------------------- Evaluation ----------------------------------
         if (epoch + 1) % 10 == 0 and (args.dataset == 'BDGP' or args.dataset == 'MNIST_USPS' or args.dataset == 'Hdigit'):
@@ -138,14 +140,16 @@ if __name__ == "__main__":
                     all_y.append(y.numpy())
                 Z_global = np.vstack(all_E)
                 y_true = np.concatenate(all_y)
-                # L2 行归一化，在超球面上聚类，减轻尺度差异，利于稳定决策边界
+                
+                # L2 normalization clusters on the hypersphere, mitigating scale differences and facilitating stable decision boundaries.
                 Z_global = sk_normalize(Z_global, norm="l2", axis=1)
+                
                 kmeans = KMeans(n_clusters=n_clusters, n_init=args.n_init, random_state=args.seed)
                 y_pred = kmeans.fit_predict(Z_global)
                 acc, nmi, ari = evaluate_clustering(y_true, y_pred)
                 print(f"   [Evaluation] ACC: {acc:.4f} | NMI: {nmi:.4f} | ARI: {ari:.4f}")
 
-                # 保存结果
+                # save results
                 epoch_result = {
                     'epoch': epoch + 1,
                     'total_loss': l_total,
@@ -193,7 +197,6 @@ if __name__ == "__main__":
                 epoch_results.append(epoch_result)
 
             ema.restore()
-
 
     filename = f"train_results/{args.dataset}_{timestamp}.json"
     save_data = {
