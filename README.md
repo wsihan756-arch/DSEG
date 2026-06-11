@@ -69,6 +69,9 @@ The paper reports that both major objective components are important:
 | Full DSEG-MVC | 99.92 | 98.63 | 97.30 |
 
 ## Getting Started🚀
+
+### Datasets
+- We have only uploaded three datasets; the other three datasets are too large to upload and will need to be downloaded by the reader.
 ### Training and Evaluation
 - To train the DSEG, run: `train.py`. The prediction results obtained using the K-Means algorithm.
 
