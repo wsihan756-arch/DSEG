@@ -22,8 +22,10 @@ def get_config(args):
             "w_ema":0.999,
             "warmup":0,
         }
+        # Add new dataset templates here
+        # 'BDGP': {...}
     }
-
+    # Update args with dataset-specific config
     config = dataset_configs[args.dataset]
     for key, value in config.items():
         setattr(args, key, value)
