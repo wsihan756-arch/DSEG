@@ -36,6 +36,7 @@ def decorr(E_list, S_list, M_list):
     return (loss1 / V) + (loss2 / V)
 
 def nce(ProjE_list, tau=0.5, tau_g=0.5):
+    """计算guided_nce损失"""
     V = len(ProjE_list)
     # 计算全局指导分布 Q_global（相似度 S 用 Z.detach，不反传）
     Z = torch.cat(ProjE_list, dim=1)
